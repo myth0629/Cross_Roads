@@ -43,9 +43,17 @@ public class GeminiManager : MonoBehaviour
     [Tooltip("식량 비축량 텍스트")]
     public TextMeshProUGUI foodCountText;
 
+    [Header("로딩 UI")]
+    [Tooltip("로딩 패널 (API 호출 중 표시)")]
+    public GameObject loadingPanel;
+
+    [Tooltip("선택지 버튼들 (로딩 중 비활성화)")]
+    public Button[] choiceButtons; // 0~3 인덱스 사용
+
     // 간단한 게임 상태 구조체
     private GameState gameState;
     private GenerativeModel flashModel;
+    private bool _isProcessing = false; // API 처리 중 플래그
 
     private async void Start()
     {
@@ -57,6 +65,12 @@ public class GeminiManager : MonoBehaviour
                 situationText.text = "오류: API 키가 설정되지 않았습니다.";
             }
             return;
+        }
+
+        // 로딩 패널 초기 상태 설정
+        if (loadingPanel != null)
+        {
+            loadingPanel.SetActive(false);
         }
 
         // llm 모델 지정
@@ -102,6 +116,9 @@ public class GeminiManager : MonoBehaviour
     /// </summary>
     public async Task RunTurnAsync()
     {
+        // 로딩 시작
+        SetLoadingState(true);
+
         try
         {
             // GeminiPromptBuilder로 통합 프롬프트 생성 (JSON 응답 기대)
@@ -139,6 +156,11 @@ public class GeminiManager : MonoBehaviour
                 situationText.text = userMessage;
             }
         }
+        finally
+        {
+            // 로딩 종료
+            SetLoadingState(false);
+        }
     }
 
     /// <summary>
@@ -146,6 +168,13 @@ public class GeminiManager : MonoBehaviour
     /// </summary>
     public async void OnChoiceSelected(int index)
     {
+        // 이미 처리 중이면 무시
+        if (_isProcessing)
+        {
+            Debug.LogWarning("이미 선택 처리 중입니다.");
+            return;
+        }
+
         if (choiceTexts == null || index < 0 || index >= choiceTexts.Length || choiceTexts[index] == null)
             return;
 
@@ -194,6 +223,34 @@ public class GeminiManager : MonoBehaviour
         {
             UnityEngine.SceneManagement.SceneManager.LoadScene("ResultScene");
         }
+    }
+
+    /// <summary>
+    /// 로딩 상태 설정 (로딩 패널 표시/숨김, 버튼 활성화/비활성화)
+    /// </summary>
+    private void SetLoadingState(bool isLoading)
+    {
+        _isProcessing = isLoading;
+
+        // 로딩 패널 표시/숨김
+        if (loadingPanel != null)
+        {
+            loadingPanel.SetActive(isLoading);
+        }
+
+        // 선택지 버튼 활성화/비활성화
+        if (choiceButtons != null)
+        {
+            foreach (var button in choiceButtons)
+            {
+                if (button != null)
+                {
+                    button.interactable = !isLoading;
+                }
+            }
+        }
+
+        Debug.Log($"로딩 상태: {(isLoading ? "로딩 중..." : "로딩 완료")}");
     }
 
     /// <summary>
