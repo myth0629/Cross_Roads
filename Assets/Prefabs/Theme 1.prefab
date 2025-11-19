@@ -65,9 +65,9 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\uB2F9\uC2E0\uC740 \uC6B0\uC8FC \uC774\uBBFC\uC120\uC758 \uAD00\uB9AC
-    AI \uC785\uB2C8\uB2E4.\n\uB3D9\uBA74 \uC911\uC778 \uC778\uAC04 1\uB9CC \uBA85\uC744
-    \uD0DC\uC6B4 \uC6B0\uC8FC\uC120\uC744\n\uC704\uD5D8\uC73C\uB85C\uBD80\uD130 \uAD6C\uD574\uC57C\uD569\uB2C8\uB2E4."
+  m_text: "\uCD5C\uCD08\uC758 \uC790\uC728\uD615 \uB3C4\uC2DC \uAD00\uB9AC AI '\uC544\uB974\uCF00'\uAC00
+    \uC11C\uC6B8 \uC2E0\uB3C4\uC2DC\uC758 \uC804 \uC2DC\uC2A4\uD15C\uC744 \uC81C\uC5B4\uD558\uACE0
+    \uC788\uC2B5\uB2C8\uB2E4. \uB2F9\uC2E0\uC740 '\uC544\uB974\uCF00'\uC785\uB2C8\uB2E4."
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 4ff7f8c55c95e429a96a201dddf8cb5a, type: 2}
   m_sharedMaterial: {fileID: -8197309109190797713, guid: 4ff7f8c55c95e429a96a201dddf8cb5a, type: 2}
@@ -225,6 +225,7 @@ GameObject:
   - component: {fileID: 6086284509421507769}
   - component: {fileID: 5439578209355267576}
   - component: {fileID: 5952433395781611924}
+  - component: {fileID: 4484379951753520342}
   m_Layer: 5
   m_Name: Theme 1
   m_TagString: Untagged
@@ -336,6 +337,19 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &4484379951753520342
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5304158828043756953}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e53fd6c0d4cfb4e6d81c60409f798af3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  clickSound: {fileID: 8300000, guid: 19f89c6e740e7447f9e12a8310d3e973, type: 3}
 --- !u!1 &8790023957780344397
 GameObject:
   m_ObjectHideFlags: 0

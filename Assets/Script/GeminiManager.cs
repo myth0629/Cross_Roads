@@ -26,10 +26,6 @@ public class GeminiManager : MonoBehaviour
     [Tooltip("안정도 값 텍스트 (예: 70/100)")]
     public TextMeshProUGUI stabilityValueText;
 
-    [Header("자원 카운터 UI")]
-    [Tooltip("식량 비축량 텍스트")]
-    public TextMeshProUGUI foodCountText;
-
     [Header("로딩 UI")]
     [Tooltip("로딩 패널 (API 호출 중 표시)")]
     public GameObject loadingPanel;
@@ -83,20 +79,14 @@ public class GeminiManager : MonoBehaviour
     {
         string selectedTheme = PlayerPrefs.GetString(SelectedThemeKey, "Random");
 
-        // Random이 선택된 경우 실제 테마 중 하나를 무작위로 선택
-        if (selectedTheme == "Random")
-        {
-            string[] availableThemes = { "AwakeningAI", "ConcreteUtopia", "DevilsAdvocate" };
-            selectedTheme = availableThemes[UnityEngine.Random.Range(0, availableThemes.Length)];
-            Debug.Log($"🎲 무작위 테마 선택됨: {selectedTheme}");
-        }
+        // Random은 그대로 유지 - GeminiPromptBuilder에서 새로운 테마를 생성하도록 함
+        Debug.Log($"� 게임 시작 - 선택된 테마: {selectedTheme}");
 
         // AI가 완전히 자유롭게 시작 상황을 만들도록 최소한의 초기 상태만 제공
         gameState = new GameState
         {
             scene = "미정",
             objective = "목표를 달성하라",
-            resources = new ResourcesState { food = 20 },
             survivorGroups = new SurvivorGroupsState { doctors = 0, patients = 0, guards = 0 },
             plotSummary = "새로운 딜레마 상황이 시작되었다. 당신은 중요한 결정을 내려야 한다.",
             lastPlayerAction = "GameStart",
@@ -104,8 +94,6 @@ public class GeminiManager : MonoBehaviour
             stability = new StabilityState { stability = 100 },
             selectedTheme = selectedTheme
         };
-
-        Debug.Log($"🎮 게임 시작 - 선택된 테마: {selectedTheme}");
     }
 
     /// <summary>
@@ -170,17 +158,15 @@ public class GeminiManager : MonoBehaviour
             {
                 Debug.Log("안정성이 0이 되었습니다! 게임오버!");
                 
-                // 로딩 종료
+                // 로딩 종료 및 버튼 비활성화
                 SetLoadingState(false);
+                DisableChoiceButtons();
                 
-                // 게임오버 메시지 표시
-                if (situationText != null)
-                {
-                    situationText.text = "안정성이 바닥났습니다. 모든 것이 무너졌습니다...";
-                }
+                // API를 통해 게임 오버 상황 설명 생성
+                await ShowGameOverMessage();
                 
                 // 잠시 대기 후 결산 씬으로
-                await System.Threading.Tasks.Task.Delay(2000);
+                await System.Threading.Tasks.Task.Delay(3000);
                 GoToResultScene();
                 return;
             }
@@ -233,9 +219,6 @@ public class GeminiManager : MonoBehaviour
         // 턴 감소
         gameState.turnsRemaining--;
 
-        // 간단한 규칙 예시: 선택에 따라 리소스 변경 (필요 시 확장)
-        gameState.resources.food = Mathf.Max(0, gameState.resources.food - 1);
-
         // plotSummary 갱신
         gameState.plotSummary = $"플레이어의 최근 선택: {gameState.lastPlayerAction}";
 
@@ -243,6 +226,9 @@ public class GeminiManager : MonoBehaviour
         if (gameState.stability.stability <= 0)
         {
             Debug.Log("안정성 0! 게임오버!");
+            DisableChoiceButtons();
+            await ShowGameOverMessage();
+            await System.Threading.Tasks.Task.Delay(3000);
             GoToResultScene();
             return;
         }
@@ -257,6 +243,93 @@ public class GeminiManager : MonoBehaviour
 
         // 다음 턴 진행
         await RunTurnAsync();
+    }
+
+    /// <summary>
+    /// 게임 오버 시 API를 통해 상황 설명 생성 및 표시
+    /// </summary>
+    private async System.Threading.Tasks.Task ShowGameOverMessage()
+    {
+        try
+        {
+            Debug.Log("게임 오버 메시지 생성 중...");
+
+            // 게임 오버 프롬프트 생성
+            string prompt = GeminiPromptBuilder.BuildGameOverPrompt(gameState);
+
+            // API 호출
+            var responseAsync = flashModel.GenerateContentAsync(prompt);
+            var response = await responseAsync;
+            string rawText = response?.Text ?? "";
+
+            Debug.Log($"[게임 오버 응답] {rawText}");
+
+            // JSON 파싱
+            var gameOverResponse = ParseGameOverResponse(rawText);
+
+            // UI 업데이트
+            if (situationText != null && !string.IsNullOrEmpty(gameOverResponse.gameover_text))
+            {
+                situationText.text = gameOverResponse.gameover_text;
+            }
+            else if (situationText != null)
+            {
+                situationText.text = "안정성이 바닥났습니다. 모든 것이 무너졌습니다...";
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"게임 오버 메시지 생성 실패: {e.Message}");
+            
+            // 기본 메시지 표시
+            if (situationText != null)
+            {
+                situationText.text = "안정성이 바닥났습니다. 모든 것이 무너졌습니다...";
+            }
+        }
+    }
+
+    private GameOverResponse ParseGameOverResponse(string rawText)
+    {
+        try
+        {
+            // 마크다운 코드블록 제거
+            string cleaned = rawText.Trim();
+            if (cleaned.StartsWith("```json"))
+            {
+                cleaned = cleaned.Substring("```json".Length);
+            }
+            else if (cleaned.StartsWith("```"))
+            {
+                cleaned = cleaned.Substring("```".Length);
+            }
+
+            if (cleaned.EndsWith("```"))
+            {
+                cleaned = cleaned.Substring(0, cleaned.Length - "```".Length);
+            }
+
+            cleaned = cleaned.Trim();
+
+            // JSON 파싱
+            var response = JsonUtility.FromJson<GameOverResponse>(cleaned);
+            
+            if (response != null && !string.IsNullOrEmpty(response.gameover_text))
+            {
+                Debug.Log($"✅ [게임 오버 파싱 성공] {response.gameover_text.Substring(0, Mathf.Min(50, response.gameover_text.Length))}...");
+                return response;
+            }
+            else
+            {
+                Debug.LogWarning("게임 오버 응답이 비어있습니다.");
+                return new GameOverResponse { gameover_text = "안정성이 바닥났습니다. 모든 것이 무너졌습니다..." };
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"게임 오버 응답 파싱 실패: {e.Message}\n원본:\n{rawText}");
+            return new GameOverResponse { gameover_text = "안정성이 바닥났습니다. 모든 것이 무너졌습니다..." };
+        }
     }
 
     /// <summary>
@@ -308,6 +381,25 @@ public class GeminiManager : MonoBehaviour
         }
 
         Debug.Log($"로딩 상태: {(isLoading ? "로딩 중..." : "로딩 완료")}");
+    }
+
+    /// <summary>
+    /// 선택지 버튼 비활성화 (게임 오버 시)
+    /// </summary>
+    private void DisableChoiceButtons()
+    {
+        if (choiceButtons != null)
+        {
+            foreach (var button in choiceButtons)
+            {
+                if (button != null)
+                {
+                    button.interactable = false;
+                }
+            }
+        }
+
+        Debug.Log("선택지 버튼 비활성화됨 (게임 오버)");
     }
 
     /// <summary>
@@ -408,20 +500,23 @@ public class GeminiManager : MonoBehaviour
         if (response.state_update == null)
             return;
 
-        // 자원 업데이트
-        if (response.state_update.resources != null)
-        {
-            int oldFood = gameState.resources.food;
-            gameState.resources.food = Mathf.Clamp(response.state_update.resources.food, 0, 99);
-            Debug.Log($"[자원 업데이트] 식량: {oldFood} → {gameState.resources.food}");
-        }
-
         // 안정성 업데이트
         if (response.state_update.stability != null)
         {
             int oldStability = gameState.stability.stability;
-            gameState.stability.stability = Mathf.Clamp(response.state_update.stability.stability, 0, 100);
-            Debug.Log($"[안정성 업데이트] {oldStability} → {gameState.stability.stability}");
+            int newStability = response.state_update.stability.stability;
+            
+            // 안정성 변화량 제한 (한 턴에 최대 ±20)
+            int stabilityChange = newStability - oldStability;
+            if (Mathf.Abs(stabilityChange) > 20)
+            {
+                Debug.LogWarning($"⚠️ 안정성 변화량이 너무 큽니다! ({oldStability} → {newStability}, 변화량: {stabilityChange}). 최대 ±20으로 제한합니다.");
+                stabilityChange = Mathf.Clamp(stabilityChange, -20, 20);
+                newStability = oldStability + stabilityChange;
+            }
+            
+            gameState.stability.stability = Mathf.Clamp(newStability, 0, 100);
+            Debug.Log($"[안정성 업데이트] {oldStability} → {gameState.stability.stability} (변화량: {gameState.stability.stability - oldStability})");
         }
     }
 
@@ -446,13 +541,6 @@ public class GeminiManager : MonoBehaviour
         {
             stabilityValueText.text = $"{gameState.stability.stability}/100";
         }
-
-        // 자원 카운터 텍스트 업데이트
-        if (foodCountText != null)
-        {
-            float daysOfFood = gameState.resources.food / 3f; // 하루 3개 소비 가정
-            foodCountText.text = $"자원: {gameState.resources.food}개";
-        }
     }
 }
 
@@ -463,19 +551,12 @@ public class GameState
 {
     public string scene;
     public string objective;
-    public ResourcesState resources;
     public SurvivorGroupsState survivorGroups;
     public string plotSummary;
     public string lastPlayerAction;
     public int turnsRemaining; // 남은 턴 수
     public StabilityState stability; // 안정성 지표
     public string selectedTheme;
-}
-
-[System.Serializable]
-public class ResourcesState
-{
-    public int food;
 }
 
 [System.Serializable]
@@ -503,18 +584,17 @@ public class GeminiResponse
 [System.Serializable]
 public class GameStateUpdate
 {
-    public ResourcesUpdate resources;
     public StabilityUpdate stability;
-}
-
-[System.Serializable]
-public class ResourcesUpdate
-{
-    public int food;
 }
 
 [System.Serializable]
 public class StabilityUpdate
 {
     public int stability;
+}
+
+[System.Serializable]
+public class GameOverResponse
+{
+    public string gameover_text;
 }

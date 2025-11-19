@@ -27,6 +27,9 @@ public class StartSceneUI : MonoBehaviour
     [Tooltip("임무 선택 팝업 패널")]
     [SerializeField] private GameObject _missionPanel;
 
+    [Tooltip("임무 선택 패널 닫기 버튼")]
+    [SerializeField] private Button _closeMissionPanelButton;
+
     [Tooltip("The Awakening AI 시나리오 버튼")]
     [SerializeField] private Button _awakeningAIMissionButton;
 
@@ -36,6 +39,7 @@ public class StartSceneUI : MonoBehaviour
     [Tooltip("The Devil's Advocate 시나리오 버튼")]
     [SerializeField] private Button _devilsAdvocateMissionButton;
 
+    [Tooltip("랜덤 시나리오 버튼")]
     [SerializeField] private Button _randomMissionButton;
 
     [Header("씬 설정")]
@@ -66,6 +70,11 @@ public class StartSceneUI : MonoBehaviour
         if (_missionPanel != null)
         {
             _missionPanel.SetActive(false);
+        }
+
+        if (_closeMissionPanelButton != null)
+        {
+            _closeMissionPanelButton.onClick.AddListener(OnCloseMissionPanelClicked);
         }
 
         if (_awakeningAIMissionButton != null)
@@ -107,6 +116,11 @@ public class StartSceneUI : MonoBehaviour
             _quitButton.onClick.RemoveListener(OnQuitButtonClicked);
         }
 
+        if (_closeMissionPanelButton != null)
+        {
+            _closeMissionPanelButton.onClick.RemoveListener(OnCloseMissionPanelClicked);
+        }
+
         if (_awakeningAIMissionButton != null)
         {
             _awakeningAIMissionButton.onClick.RemoveAllListeners();
@@ -144,9 +158,21 @@ public class StartSceneUI : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 임무 선택 패널 닫기 버튼 클릭 시 호출
+    /// </summary>
+    private void OnCloseMissionPanelClicked()
+    {
+        if (_missionPanel != null)
+        {
+            _missionPanel.SetActive(false);
+        }
+    }
+
     private void OnMissionSelected(string themeKey)
     {
         string resolvedTheme = string.IsNullOrEmpty(themeKey) ? "Random" : themeKey;
+        
         PlayerPrefs.SetString(SelectedThemeKey, resolvedTheme);
         PlayerPrefs.Save();
 
