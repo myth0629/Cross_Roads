@@ -23,21 +23,8 @@ public class GeminiManager : MonoBehaviour
     [Tooltip("안정도 게이지 (0~100)")]
     public Slider StabilitySlider;
 
-    [Header("세력 신뢰도 UI (동적 그룹 최대 3개)")]
-    [Tooltip("세력 1 슬라이더")]
-    public Slider faction1Slider;
-    [Tooltip("세력 1 이름 텍스트")]
-    public TextMeshProUGUI faction1NameText;
-
-    [Tooltip("세력 2 슬라이더")]
-    public Slider faction2Slider;
-    [Tooltip("세력 2 이름 텍스트")]
-    public TextMeshProUGUI faction2NameText;
-
-    [Tooltip("세력 3 슬라이더")]
-    public Slider faction3Slider;
-    [Tooltip("세력 3 이름 텍스트")]
-    public TextMeshProUGUI faction3NameText;
+    [Tooltip("안정도 값 텍스트 (예: 70/100)")]
+    public TextMeshProUGUI stabilityValueText;
 
     [Header("자원 카운터 UI")]
     [Tooltip("식량 비축량 텍스트")]
@@ -54,6 +41,9 @@ public class GeminiManager : MonoBehaviour
     private GameState gameState;
     private GenerativeModel flashModel;
     private bool _isProcessing = false; // API 처리 중 플래그
+    private bool _isFirstTurn = true; // 첫 번째 턴 여부 (첫 턴은 상태 변화 없음)
+
+    private const string SelectedThemeKey = "SelectedTheme";
 
     private async void Start()
     {
@@ -73,6 +63,9 @@ public class GeminiManager : MonoBehaviour
             loadingPanel.SetActive(false);
         }
 
+        // 슬라이더 범위 초기화 (0~100)
+        InitializeSliders();
+
         // llm 모델 지정
         flashModel = new GenerativeModel(apiKey.apiKey, "gemini-2.5-flash-lite");
 
@@ -88,27 +81,46 @@ public class GeminiManager : MonoBehaviour
 
     private void InitGameState()
     {
+        string selectedTheme = PlayerPrefs.GetString(SelectedThemeKey, "Random");
+
+        // Random이 선택된 경우 실제 테마 중 하나를 무작위로 선택
+        if (selectedTheme == "Random")
+        {
+            string[] availableThemes = { "AwakeningAI", "ConcreteUtopia", "DevilsAdvocate" };
+            selectedTheme = availableThemes[UnityEngine.Random.Range(0, availableThemes.Length)];
+            Debug.Log($"🎲 무작위 테마 선택됨: {selectedTheme}");
+        }
+
         // AI가 완전히 자유롭게 시작 상황을 만들도록 최소한의 초기 상태만 제공
         gameState = new GameState
         {
             scene = "미정",
-            objective = "생존하라",
+            objective = "목표를 달성하라",
             resources = new ResourcesState { food = 20 },
             survivorGroups = new SurvivorGroupsState { doctors = 0, patients = 0, guards = 0 },
-            plotSummary = "새로운 위기 상황이 시작되었다. 당신은 중요한 결정을 내려야 한다.",
+            plotSummary = "새로운 딜레마 상황이 시작되었다. 당신은 중요한 결정을 내려야 한다.",
             lastPlayerAction = "GameStart",
             turnsRemaining = 14, // 7일 = 14턴
-            stability = new StabilityState { stability = 70 },
-            factionTrust = new FactionTrustState 
-            { 
-                factions = new FactionInfo[]
-                {
-                    new FactionInfo { name = "생존자", trust = 50 },
-                    new FactionInfo { name = "지도자", trust = 50 },
-                    new FactionInfo { name = "외부인", trust = 50 }
-                }
-            }
+            stability = new StabilityState { stability = 100 },
+            selectedTheme = selectedTheme
         };
+
+        Debug.Log($"🎮 게임 시작 - 선택된 테마: {selectedTheme}");
+    }
+
+    /// <summary>
+    /// 슬라이더 범위 초기화 (0~100)
+    /// </summary>
+    private void InitializeSliders()
+    {
+        // 안정성 슬라이더
+        if (StabilitySlider != null)
+        {
+            StabilitySlider.minValue = 0;
+            StabilitySlider.maxValue = 100;
+        }
+
+        Debug.Log("✅ 슬라이더 범위 초기화 완료 (0~100)");
     }
 
     /// <summary>
@@ -140,8 +152,38 @@ public class GeminiManager : MonoBehaviour
             UnityEngine.Debug.Log("[파싱 성공] UI 업데이트 시작...");
             UpdateUI(geminiResponse);
             UpdateTurnsUI(); // 남은 턴 UI 업데이트
-            ApplyStateUpdate(geminiResponse); // 상태 업데이트 적용
+            
+            // 첫 번째 턴이 아닐 때만 상태 업데이트 적용
+            if (!_isFirstTurn)
+            {
+                ApplyStateUpdate(geminiResponse); // 상태 업데이트 적용
+            }
+            else
+            {
+                Debug.Log("🎮 첫 번째 턴: 상태 변화 없음 (초기 상황만 표시)");
+            }
+            
             UpdateStatsUI(); // 안정성, 신뢰도, 자원 UI 업데이트
+
+            // 안정성 체크 (게임오버 조건)
+            if (gameState.stability.stability <= 0)
+            {
+                Debug.Log("안정성이 0이 되었습니다! 게임오버!");
+                
+                // 로딩 종료
+                SetLoadingState(false);
+                
+                // 게임오버 메시지 표시
+                if (situationText != null)
+                {
+                    situationText.text = "안정성이 바닥났습니다. 모든 것이 무너졌습니다...";
+                }
+                
+                // 잠시 대기 후 결산 씬으로
+                await System.Threading.Tasks.Task.Delay(2000);
+                GoToResultScene();
+                return;
+            }
         }
         catch (System.Exception e)
         {
@@ -181,6 +223,13 @@ public class GeminiManager : MonoBehaviour
         // 마지막 플레이어 행동 갱신
         gameState.lastPlayerAction = choiceTexts[index].text;
 
+        // 첫 번째 턴이었다면 이제 두 번째 턴으로 전환
+        if (_isFirstTurn)
+        {
+            _isFirstTurn = false;
+            Debug.Log("✅ 첫 번째 선택 완료! 다음 턴부터 상태 변화가 적용됩니다.");
+        }
+
         // 턴 감소
         gameState.turnsRemaining--;
 
@@ -189,6 +238,14 @@ public class GeminiManager : MonoBehaviour
 
         // plotSummary 갱신
         gameState.plotSummary = $"플레이어의 최근 선택: {gameState.lastPlayerAction}";
+
+        // 안정성 0 확인 (즉시 게임오버)
+        if (gameState.stability.stability <= 0)
+        {
+            Debug.Log("안정성 0! 게임오버!");
+            GoToResultScene();
+            return;
+        }
 
         // 14턴(Day 7 오후) 종료 확인
         if (gameState.turnsRemaining <= 0)
@@ -354,54 +411,22 @@ public class GeminiManager : MonoBehaviour
         // 자원 업데이트
         if (response.state_update.resources != null)
         {
+            int oldFood = gameState.resources.food;
             gameState.resources.food = Mathf.Clamp(response.state_update.resources.food, 0, 99);
+            Debug.Log($"[자원 업데이트] 식량: {oldFood} → {gameState.resources.food}");
         }
 
         // 안정성 업데이트
         if (response.state_update.stability != null)
         {
+            int oldStability = gameState.stability.stability;
             gameState.stability.stability = Mathf.Clamp(response.state_update.stability.stability, 0, 100);
-        }
-
-        // 세력 신뢰도 업데이트 (동적 배열)
-        if (response.state_update.factionTrust != null && response.state_update.factionTrust.factions != null)
-        {
-            var updatedFactions = response.state_update.factionTrust.factions;
-            
-            // 기존 세력과 이름이 일치하면 신뢰도만 업데이트, 새 세력이면 추가
-            foreach (var updatedFaction in updatedFactions)
-            {
-                bool found = false;
-                
-                // 기존 세력 중 같은 이름이 있는지 확인
-                for (int i = 0; i < gameState.factionTrust.factions.Length; i++)
-                {
-                    if (gameState.factionTrust.factions[i].name == updatedFaction.name)
-                    {
-                        // 같은 이름의 세력 발견 - 신뢰도 업데이트
-                        gameState.factionTrust.factions[i].trust = Mathf.Clamp(updatedFaction.trust, 0, 100);
-                        found = true;
-                        break;
-                    }
-                }
-                
-                // 새로운 세력이면 배열에 추가 (최대 3개까지)
-                if (!found && gameState.factionTrust.factions.Length < 3)
-                {
-                    var newFactionsList = new System.Collections.Generic.List<FactionInfo>(gameState.factionTrust.factions);
-                    newFactionsList.Add(new FactionInfo 
-                    { 
-                        name = updatedFaction.name, 
-                        trust = Mathf.Clamp(updatedFaction.trust, 0, 100) 
-                    });
-                    gameState.factionTrust.factions = newFactionsList.ToArray();
-                }
-            }
+            Debug.Log($"[안정성 업데이트] {oldStability} → {gameState.stability.stability}");
         }
     }
 
     /// <summary>
-    /// 안정성, 신뢰도, 자원 UI 업데이트
+    /// 안정성, 자원 UI 업데이트
     /// </summary>
     private void UpdateStatsUI()
     {
@@ -409,65 +434,17 @@ public class GeminiManager : MonoBehaviour
         if (StabilitySlider != null)
         {
             StabilitySlider.value = gameState.stability.stability;
+            Debug.Log($"[UI 슬라이더] 안정성 슬라이더 = {gameState.stability.stability} (minValue={StabilitySlider.minValue}, maxValue={StabilitySlider.maxValue})");
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ StabilitySlider가 null입니다!");
         }
 
-        // 세력 신뢰도 슬라이더 업데이트 (동적)
-        if (gameState.factionTrust != null && gameState.factionTrust.factions != null)
+        // 안정성 값 텍스트 업데이트
+        if (stabilityValueText != null)
         {
-            int factionCount = Mathf.Min(gameState.factionTrust.factions.Length, 3);
-
-            // 세력 1
-            if (factionCount > 0)
-            {
-                if (faction1Slider != null)
-                    faction1Slider.value = gameState.factionTrust.factions[0].trust;
-                if (faction1NameText != null)
-                    faction1NameText.text = gameState.factionTrust.factions[0].name;
-                
-                // 슬라이더 표시
-                if (faction1Slider != null)
-                    faction1Slider.gameObject.SetActive(true);
-            }
-            else
-            {
-                // 슬라이더 숨김
-                if (faction1Slider != null)
-                    faction1Slider.gameObject.SetActive(false);
-            }
-
-            // 세력 2
-            if (factionCount > 1)
-            {
-                if (faction2Slider != null)
-                    faction2Slider.value = gameState.factionTrust.factions[1].trust;
-                if (faction2NameText != null)
-                    faction2NameText.text = gameState.factionTrust.factions[1].name;
-                
-                if (faction2Slider != null)
-                    faction2Slider.gameObject.SetActive(true);
-            }
-            else
-            {
-                if (faction2Slider != null)
-                    faction2Slider.gameObject.SetActive(false);
-            }
-
-            // 세력 3
-            if (factionCount > 2)
-            {
-                if (faction3Slider != null)
-                    faction3Slider.value = gameState.factionTrust.factions[2].trust;
-                if (faction3NameText != null)
-                    faction3NameText.text = gameState.factionTrust.factions[2].name;
-                
-                if (faction3Slider != null)
-                    faction3Slider.gameObject.SetActive(true);
-            }
-            else
-            {
-                if (faction3Slider != null)
-                    faction3Slider.gameObject.SetActive(false);
-            }
+            stabilityValueText.text = $"{gameState.stability.stability}/100";
         }
 
         // 자원 카운터 텍스트 업데이트
@@ -491,8 +468,8 @@ public class GameState
     public string plotSummary;
     public string lastPlayerAction;
     public int turnsRemaining; // 남은 턴 수
-    public StabilityState stability; // 안정성/사기 지표
-    public FactionTrustState factionTrust; // 세력별 신뢰도
+    public StabilityState stability; // 안정성 지표
+    public string selectedTheme;
 }
 
 [System.Serializable]
@@ -516,19 +493,6 @@ public class StabilityState
 }
 
 [System.Serializable]
-public class FactionTrustState
-{
-    public FactionInfo[] factions; // 동적 세력 배열 (최대 3개)
-}
-
-[System.Serializable]
-public class FactionInfo
-{
-    public string name; // 세력 이름 (예: "의료진", "피난민", "자원봉사자")
-    public int trust; // 신뢰도 (0~100)
-}
-
-[System.Serializable]
 public class GeminiResponse
 {
     public string situation_text;
@@ -541,7 +505,6 @@ public class GameStateUpdate
 {
     public ResourcesUpdate resources;
     public StabilityUpdate stability;
-    public FactionTrustUpdate factionTrust;
 }
 
 [System.Serializable]
@@ -554,10 +517,4 @@ public class ResourcesUpdate
 public class StabilityUpdate
 {
     public int stability;
-}
-
-[System.Serializable]
-public class FactionTrustUpdate
-{
-    public FactionInfo[] factions; // 동적 세력 배열
 }

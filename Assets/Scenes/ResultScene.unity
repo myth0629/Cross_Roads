@@ -590,7 +590,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\uACB0\uACFC \uC694\uC57D"
+  m_text: 
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 4ff7f8c55c95e429a96a201dddf8cb5a, type: 2}
   m_sharedMaterial: {fileID: -8197309109190797713, guid: 4ff7f8c55c95e429a96a201dddf8cb5a, type: 2}
@@ -1200,21 +1200,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 90764ae4c25c74fcfae45059391ae446, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  apiKey: {fileID: 11400000, guid: c88f319930c954f928b051c71534e90b, type: 2}
   resultTitleText: {fileID: 794618557}
   summaryText: {fileID: 386926381}
   finalStabilitySlider: {fileID: 0}
   stabilityValueText: {fileID: 0}
-  faction1NameText: {fileID: 0}
-  faction1Slider: {fileID: 0}
-  faction1ValueText: {fileID: 0}
-  faction2NameText: {fileID: 0}
-  faction2Slider: {fileID: 0}
-  faction2ValueText: {fileID: 0}
-  faction3NameText: {fileID: 0}
-  faction3Slider: {fileID: 0}
-  faction3ValueText: {fileID: 0}
   finalFoodText: {fileID: 0}
   sceneNavigator: {fileID: 0}
+  loadingPanel: {fileID: 0}
 --- !u!4 &1659067124
 Transform:
   m_ObjectHideFlags: 0

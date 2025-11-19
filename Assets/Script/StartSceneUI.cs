@@ -8,6 +8,11 @@ using UnityEngine.UI;
 /// </summary>
 public class StartSceneUI : MonoBehaviour
 {
+    private const string SelectedThemeKey = "SelectedTheme";
+    private const string ThemeAwakeningAI = "AwakeningAI";
+    private const string ThemeConcreteUtopia = "ConcreteUtopia";
+    private const string ThemeDevilsAdvocate = "DevilsAdvocate";
+
     [Header("버튼 설정")]
     [Tooltip("게임 시작/재시작 버튼")]
     [SerializeField] private Button _startButton;
@@ -17,6 +22,21 @@ public class StartSceneUI : MonoBehaviour
 
     [Tooltip("게임 종료 버튼 (선택사항)")]
     [SerializeField] private Button _quitButton;
+
+    [Header("임무 선택 패널")]
+    [Tooltip("임무 선택 팝업 패널")]
+    [SerializeField] private GameObject _missionPanel;
+
+    [Tooltip("The Awakening AI 시나리오 버튼")]
+    [SerializeField] private Button _awakeningAIMissionButton;
+
+    [Tooltip("Concrete Utopia 시나리오 버튼")]
+    [SerializeField] private Button _concreteUtopiaMissionButton;
+
+    [Tooltip("The Devil's Advocate 시나리오 버튼")]
+    [SerializeField] private Button _devilsAdvocateMissionButton;
+
+    [SerializeField] private Button _randomMissionButton;
 
     [Header("씬 설정")]
     [Tooltip("시작 버튼 클릭 시 로드할 씬 이름")]
@@ -42,6 +62,31 @@ public class StartSceneUI : MonoBehaviour
         {
             _quitButton.onClick.AddListener(OnQuitButtonClicked);
         }
+
+        if (_missionPanel != null)
+        {
+            _missionPanel.SetActive(false);
+        }
+
+        if (_awakeningAIMissionButton != null)
+        {
+            _awakeningAIMissionButton.onClick.AddListener(() => OnMissionSelected(ThemeAwakeningAI));
+        }
+
+        if (_concreteUtopiaMissionButton != null)
+        {
+            _concreteUtopiaMissionButton.onClick.AddListener(() => OnMissionSelected(ThemeConcreteUtopia));
+        }
+
+        if (_devilsAdvocateMissionButton != null)
+        {
+            _devilsAdvocateMissionButton.onClick.AddListener(() => OnMissionSelected(ThemeDevilsAdvocate));
+        }
+
+        if (_randomMissionButton != null)
+        {
+            _randomMissionButton.onClick.AddListener(() => OnMissionSelected("Random"));
+        }
     }
 
     private void OnDestroy()
@@ -61,6 +106,26 @@ public class StartSceneUI : MonoBehaviour
         {
             _quitButton.onClick.RemoveListener(OnQuitButtonClicked);
         }
+
+        if (_awakeningAIMissionButton != null)
+        {
+            _awakeningAIMissionButton.onClick.RemoveAllListeners();
+        }
+
+        if (_concreteUtopiaMissionButton != null)
+        {
+            _concreteUtopiaMissionButton.onClick.RemoveAllListeners();
+        }
+
+        if (_devilsAdvocateMissionButton != null)
+        {
+            _devilsAdvocateMissionButton.onClick.RemoveAllListeners();
+        }
+
+        if (_randomMissionButton != null)
+        {
+            _randomMissionButton.onClick.RemoveAllListeners();
+        }
     }
 
     /// <summary>
@@ -68,7 +133,30 @@ public class StartSceneUI : MonoBehaviour
     /// </summary>
     private void OnStartButtonClicked()
     {
-        Debug.Log($"씬 이동: {_targetSceneName}");
+        if (_missionPanel != null)
+        {
+            _missionPanel.SetActive(true);
+        }
+        else
+        {
+            Debug.LogWarning("임무 선택 패널이 설정되지 않아 바로 게임을 시작합니다.");
+            LoadScene(_targetSceneName);
+        }
+    }
+
+    private void OnMissionSelected(string themeKey)
+    {
+        string resolvedTheme = string.IsNullOrEmpty(themeKey) ? "Random" : themeKey;
+        PlayerPrefs.SetString(SelectedThemeKey, resolvedTheme);
+        PlayerPrefs.Save();
+
+        Debug.Log($"임무 선택: {resolvedTheme}");
+
+        if (_missionPanel != null)
+        {
+            _missionPanel.SetActive(false);
+        }
+
         LoadScene(_targetSceneName);
     }
 
